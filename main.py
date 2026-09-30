@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles  # To serve the static files like CS
 from fastapi.responses import JSONResponse  # We can manual return JSON responces
 from fastapi.exceptions import RequestValidationError   # Handle wrong request data like str instead of int passed
 from starlette.exceptions import HTTPException as starletteHTTPException    # if someone access some route that are not present are catched by starlette exceptions
-
+from schemas import PostCreate, PostResponse
 
 app = FastAPI()
 
@@ -20,35 +20,35 @@ posts: list[dict] = [
         "author": "Gaurav Patil",
         "title": "Getting Started with Pydantic",
         "content": "Pydantic makes data validation and serialization simple in Python applications.",
-        "date_posted": datetime(2018, 4, 20)
+        "date_posted": "Apr 1 2000"
     },
     {
         "id": 2,
         "author": "Priya Sharma",
         "title": "Understanding FastAPI Dependency Injection",
         "content": "Dependency injection helps create reusable, testable, and maintainable APIs.",
-        "date_posted": datetime(2018, 4, 20)
+        "date_posted": "Apr 1 2000"
     },
     {
         "id": 3,
         "author": "Rahul Verma",
         "title": "Top 5 Python Tips",
         "content": "These Python tips can improve readability and reduce development time.",
-        "date_posted": datetime(2018, 4, 20)
+        "date_posted": "Apr 1 2000"
     },
     {
         "id": 4,
         "author": "Sneha Kulkarni",
         "title": "Introduction to SQLAlchemy",
         "content": "SQLAlchemy provides a powerful ORM for working with relational databases.",
-        "date_posted": datetime(2018, 4, 20)
+        "date_posted": "Apr 1 2000"
     },
     {
         "id": 5,
         "author": "Amit Joshi",
         "title": "REST vs GraphQL",
         "content": "Both REST and GraphQL are popular API architectures with unique benefits.",
-        "date_posted": datetime(2018, 4, 20)
+        "date_posted": "Apr 1 2000"
     }
 ]
 
@@ -76,12 +76,28 @@ def post_page(request: Request, post_id: int):  # Do type hinting so we need not
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post was not found")
 
 
-@app.get('/api/posts')
+@app.get('/api/posts', response_model=list[PostResponse])  # By adding response model we validate what we are returning with the schemas
 def get_posts():
     return posts
 
 
-@app.get('/api/posts/{post_id}', status_code=status.HTTP_200_OK)
+@app.post('/api/posts', response_model=PostCreate, status_code=status.HTTP_201_CREATED)
+def create_post(post: PostCreate):
+    new_id = max(p['id'] for p in posts) + 1 if posts else 1
+
+    new_post = {
+        "id": new_id,
+        'author': post.author,
+        'title': post.title,
+        'content': post.content,
+        'date_posted': 'Apr 1 2029'
+    }
+
+    posts.append(new_post)
+    return new_post
+
+
+@app.get('/api/posts/{post_id}', status_code=status.HTTP_200_OK, response_model=PostResponse)
 def get_post(post_id: int):  # Do type hinting so we need not to do specifically
     for post in posts:
         if post.get('id') == post_id:
