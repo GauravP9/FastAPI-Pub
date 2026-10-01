@@ -52,3 +52,5 @@ Here create the asyncsession and dependancy injection code
 Converted to async engine, replaced sessionmaker async and get_db as well did 
 main.py added lifespan and all route are now async and exception handler use fastapi default handler
 for eagerloading we are using selectinload
+
+# 7 commit - ROUTER
