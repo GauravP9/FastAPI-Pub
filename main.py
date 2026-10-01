@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 import models
 from database import Base, engine, get_db  # Base,engin - are for creating the tables and accessing, get_db for injection
-from schemas import PostCreate, PostResponse, UserCreate, UserResponce
+from schemas import PostCreate, PostResponse, UserCreate, UserResponce, PostUpdate, UserUpdate
 
 Base.metadata.create_all(bind=engine)   # Creates all the tables which inherit from the Base class this is idempotent so even if we run multiple time no problems
 
@@ -29,7 +29,7 @@ templates = Jinja2Templates(directory='templates')
 
 
 @app.get('/', include_in_schema=False, name='home')  # name here is use for naming the route so that both route work seperately
-@app.get('/posts', name='posts')
+@app.get('/posts', name='posts', include_in_schema= False)
 def home(request: Request, db: Annotated[Session, Depends(get_db)]):  # request - allows us to return HTML via jinja template so whereve we use jinja template we use request as input
     result = db.execute(
         Select(models.Post)
@@ -154,6 +154,46 @@ def get_post_of_user(user_id: int, db: Annotated[Session, Depends(get_db)]):
     return all_posts
     # raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No post found by this userid")
 
+# Used PostUpdate cause the post that we modify and PostUpdate req partial data 
+@app.patch('/api/users/{user_id}',  status_code=status.HTTP_200_OK, response_model=UserResponce)  # Used patch here so fun name is also partial
+def update_user_partial(user_id: int, user_update: UserUpdate, db: Annotated[Session, Depends(get_db)]): 
+    result = db.execute(Select(models.User).where(models.User.id == user_id))   # Check if USER exists
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User was not found")
+
+    if user_update.username is not None and user_update.username != user.username:
+        result = db.execute(Select(models.User).where(models.User.username == user_update.username))   # Check if the new userid exists
+        existing_user = result.scalars().first()
+        if existing_user:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username is already present")
+
+    if user_update.email is not None and user_update.email != user.email:
+        result = db.execute(Select(models.User).where(models.User.email == user_update.email))   # Check if the new email exists
+        existing_email = result.scalars().first()
+        if existing_email:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is already present")
+
+    
+    update_data = user_update.model_dump(exclude_unset=True)  # NOTE: This make PATCH work, This helps only get the updated data from the req body
+
+    for field,val in update_data.items():   # Loop over dict
+        setattr(user, field, val)   # Dynamical set the key,val on Post object
+
+    db.commit() # How knows what to commit - Which objects have changed since they were loaded?
+    db.refresh(user)
+    return user
+
+
+@app.delete('/api/users/{user_id}', status_code=status.HTTP_204_NO_CONTENT) # No response model as nothing to return
+def delete_user(user_id: int,  db: Annotated[Session, Depends(get_db)]):
+    result = db.execute(Select(models.User).where(models.User.id== user_id))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    db.delete(user)
+    db.commit()
+
 
 @app.get('/api/posts', response_model=list[PostResponse])  # By adding response model we validate what we are returning with the schemas
 def get_posts(db: Annotated[Session, Depends(get_db)]):
@@ -190,6 +230,59 @@ def get_post(post_id: int,  db: Annotated[Session, Depends(get_db)]):  # Do type
     if not posts:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post was not found")
     return posts
+
+
+# Used PostCreate cause the post that we modify and postcreate req same data and we doing full update so need same data as create
+@app.put('/api/posts/{post_id}',  status_code=status.HTTP_200_OK, response_model=PostResponse)  # Used put here so fun name is also modufy full
+def update_post_full(post_id: int, post_data: PostCreate, db: Annotated[Session, Depends(get_db)]):  # Do type hinting so we need not to do specifically
+    result = db.execute(Select(models.Post).where(models.Post.id == post_id))   # Check if POST exists
+    post = result.scalars().first()
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post was not found")
+
+    if post_data.user_id == post.user_id:   # Check if the USER exists
+            result = db.execute(Select(models.User).where(models.User.id == post_data.user_id))
+            result_id= result.scalars().first()
+            if not result_id:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User ID does not exist")
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User ID does not have access to modify other users post")
+
+    post.title = post_data.title    # SET THE DATA
+    post.content = post_data.content
+    post.user_id = post_data.user_id
+
+    db.commit() # How knows what to commit - Which objects have changed since they were loaded?
+    db.refresh(post)
+    return post
+
+
+# Used PostUpdate cause the post that we modify and PostUpdate req partial data 
+@app.patch('/api/posts/{post_id}',  status_code=status.HTTP_200_OK, response_model=PostResponse)  # Used patch here so fun name is also partial
+def update_post_partial(post_id: int, post_data: PostUpdate, db: Annotated[Session, Depends(get_db)]): 
+    result = db.execute(Select(models.Post).where(models.Post.id == post_id))   # Check if POST exists
+    post = result.scalars().first()
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post was not found")
+
+    update_data = post_data.model_dump(exclude_unset=True)  # NOTE: This make PATCH work, This helps only get the updated data from the req body
+
+    for field,val in update_data.items():   # Loop over dict
+        setattr(post, field, val)   # Dynamical set the key,val on Post object
+
+    db.commit() # How knows what to commit - Which objects have changed since they were loaded?
+    db.refresh(post)
+    return post
+
+
+@app.delete('/api/posts/{post_id}', status_code=status.HTTP_204_NO_CONTENT) # No response model as nothing to return
+def delete_post(post_id: int,  db: Annotated[Session, Depends(get_db)]):
+    result = db.execute(Select(models.Post).where(models.Post.id == post_id))
+    post = result.scalars().first()
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post was not found")
+    db.delete(post)
+    db.commit()
 
 
 @app.exception_handler(starletteHTTPException)

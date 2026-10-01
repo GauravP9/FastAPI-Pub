@@ -21,7 +21,7 @@ class User(Base):   # Set here cause we want to assossiate the post with each us
 
     posts: Mapped[list[Post]] = relationship(
         back_populates="author",
-        cascade="all, delete-orphan",
+        cascade="all, delete-orphan",   # This mean that if user is deleted then all the post are deleted as well
     )   # One to Many relationship. Here post can be connected to many user
     # Post here is forward reference - before creating post[class created below ] we can ref
 
