@@ -21,7 +21,34 @@ configDict is very improtant lets us access the object which are dict as attribu
 
 
 # 5th commit - SQLite convertsion
-models.py is creaed to set up the relationship between the tables and with the help of dependancy injection
+1.  BASE CLASS = "This class is an ORM model and should be mapped to a database table."
+Base.metadata.create_all(...) -> Base keeps a collection of all ORM models that inherit from it and those are created in the database -> "Create all registered tables."
+
+2.  models.py is creaed to set up the relationship between the tables and with the help of dependancy injection
+model class is blueprint of the table -> select(model.post) -> "Query the table represented by the Post ORM class -> relation is cause _tablename_ = 'posts'
+
+3.  In models whichever column has relationship mentioned those are just py relationship those are not real column and they r not converted to column either. VIMP relationship sqlalchemy dont create column for the one which have this relationship word
+back_populates = "these two relationship fields represent the same connection"
+
+
+4.  
 We modified the apis , heavily used models here so that is very important
 Models have mapped method which maps column to the attribute so it works as ORM
 The queries are little different so need to focus on that 
+
+# 6th commit - Async
+@asynccontextmanager
+lifespan context manager --> Enter context ↓ Use resource ↓ Exit context
+A lifespan context manager is a function that lets FastAPI run setup code when the application starts and cleanup code when the application shuts down.
+
+! To convert code into async
+1.  Get asyncontextmanager which will create all the tables at the start of your application
+2.  Now convert the database modesl into async with 
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+Here create the asyncsession and dependancy injection code
+
+3.  EagerLoading - In async fun context lazy loading is not allowded meaning that we dont load other relationship automatically like its done in sync fun so here we have to use eagerloading meaning we tell fastapi that load relatioship at the start of the trasaction only
+
+Converted to async engine, replaced sessionmaker async and get_db as well did 
+main.py added lifespan and all route are now async and exception handler use fastapi default handler
+for eagerloading we are using selectinload
