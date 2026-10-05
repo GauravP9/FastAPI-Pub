@@ -8,11 +8,19 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    pass
+    password: str = Field(min_length=4)  # Accept passwd while creating
 
 # ConfigDict - Pdantic when validating something default way is dict but with this method we READ fields from object attribute
 # Pydantic extracts values from object attributes and then validates them. If we using pdantic everywhere then use from_attr
-class UserResponce(UserBase):
+
+
+class UserPrivate():
+    pass
+
+# Splitted the UserResponse schema into Private/Public for appropriate use case
+
+
+class UserPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)  # Read data with object not just dict this is important for db reading->ORM
 
     id: int
@@ -20,10 +28,19 @@ class UserResponce(UserBase):
     image_path: str     # This is property of user model in model.py
 
 
+class UserPrivate(UserPublic):
+    email: EmailStr
+
+
 class UserUpdate(UserBase):
     username: str | None = Field(default=None, max_length=10)   # Update here has all optional
     email: EmailStr | None = Field(default=None, max_length=30)
     image_file: str | None = Field(default=None, max_length=100)
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 
 
 class PostBase(BaseModel):  # Base class - Will be use to create and receive post
@@ -47,4 +64,4 @@ class PostResponse(PostBase):  # What we return from our API
     id: int
     user_id: int
     date_posted: str | datetime
-    author: UserResponce  # We will get neseted data here with the post
+    author: UserPublic  # We will get neseted data here in post -> Updated this to UserPublic

@@ -1,22 +1,28 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import Select
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import Select, func  # func - for case-insensetive query[Any func called on this become sql func func.lower(col) => lower(col)]
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from database import get_db
-from schemas import PostResponse, UserCreate, UserResponce, UserUpdate
+from schemas import PostResponse, UserCreate, UserPublic, UserPrivate, UserUpdate, Token
 import models
+
+from datetime import timedelta
+from auth import hash_password, oauth2_scheme, verify_access_token, verify_password, create_access_token
+from config import settings
+
 
 router = APIRouter()
 
 
 # we will add prefix in main.py so withing user.py will have empty string and at end it will add up and become /api/user
-@router.post("", response_model=UserCreate, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=UserPrivate, status_code=status.HTTP_201_CREATED)
 async def create_user(user: UserCreate, db: Annotated[AsyncSession, Depends(get_db)]):   # Create session and gives us and cleans afterwards
     result = await db.execute(
-        Select(models.User).where(models.User.username == user.username),
+        Select(models.User).where(func.lower(models.User.username) == user.username.lower()),
     )
 
     existing_user = result.scalars().first()
@@ -27,7 +33,7 @@ async def create_user(user: UserCreate, db: Annotated[AsyncSession, Depends(get_
                             )
     # EMAIL CHECKING
     email_result = await db.execute(
-        Select(models.User).where(models.User.email == user.email),
+        Select(models.User).where(func.lower(models.User.email) == user.email.lower()),
     )
 
     existing_email = email_result.scalars().first()
@@ -39,7 +45,8 @@ async def create_user(user: UserCreate, db: Annotated[AsyncSession, Depends(get_
 
     new_user = models.User(
         username=user.username,
-        email=user.email
+        email=user.email.lower(),
+        password_hash=hash_password(user.password)
     )
 
     db.add(new_user)    # No AWAIT here cause this only appends to session list
@@ -49,7 +56,70 @@ async def create_user(user: UserCreate, db: Annotated[AsyncSession, Depends(get_
     return new_user
 
 
-@router.get('/{user_id}', status_code=status.HTTP_200_OK, response_model=UserResponce)
+@router.post('/token', status_code=status.HTTP_200_OK, response_model=Token)
+async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Annotated[AsyncSession, Depends(get_db)]):
+    # Look up user by email
+    # NOTE: OAuth2 uses "username" field but we treat it as email
+
+    result = await db.execute(
+        Select(models.User).where(func.lower(models.User.email) == form_data.username.lower())
+    )
+
+    user = result.scalars().first()
+
+    # Verify user exist and password is correct
+
+    if not user or not verify_password(form_data.password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Incorrect email or password",
+                            headers={'WWW-Authenticate': "Bearer"}
+                            )
+    # Create access token with user id as subject
+    access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
+
+    access_token = create_access_token(
+        data={'sub': str(user.id)},
+        expires_delta=access_token_expires
+    )
+    return Token(access_token=access_token, token_type='bearer')
+
+# OAuth2PasswordRequestForm - is a predefined FastAPI class that captures the login form fields (username, password, etc.) from the incoming HTTP request.
+# is simply the value typed into the login form's username field (which in your application is being used as the email).
+
+
+@router.get("/me", response_model=UserPrivate)  # This route for frontend to know who is logged in
+async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: Annotated[AsyncSession, Depends(get_db)]):
+    """Get the current authenticated user"""
+    user_id = verify_access_token(token)
+
+    if user_id is None:  # We are using this for JWTInvalidTokenError
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail='Unauthorized User or Token Expired',
+                            headers={"WWW-Authenticated": "Bearer"}
+                            )
+    # Validate user id is valid integer [Defence against malformed JWT]
+    try:
+        user_id_int: int = int(user_id)
+    except TypeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED1,
+            detail="Invalid/Expired token",
+            headers={'WWW-Authenticate': "Bearer"}
+        )
+
+    result = await db.execute(Select(models.User).where(models.User.id == user_id_int))
+
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED1,
+            detail="Invalid/Expired token",
+            headers={'WWW-Authenticate': "Bearer"}
+        )
+    return user
+
+
+@router.get('/{user_id}', status_code=status.HTTP_200_OK, response_model=UserPrivate)
 async def get_user(user_id: int, db: Annotated[AsyncSession, Depends(get_db)]):  # Do type hinting so we need not to do specifically
     result = await db.execute(
         Select(models.User).where(models.User.id == user_id)
@@ -84,7 +154,7 @@ async def get_user_posts(user_id: int, db: Annotated[AsyncSession, Depends(get_d
     # raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No post found by this userid")
 
 
-@router.patch('/{user_id}',  status_code=status.HTTP_200_OK, response_model=UserResponce)  # Used patch here so fun name is also partial
+@router.patch('/{user_id}',  status_code=status.HTTP_200_OK, response_model=UserPrivate)  # Used patch here so fun name is also partial
 async def update_user_partial(user_id: int, user_update: UserUpdate, db: Annotated[AsyncSession, Depends(get_db)]):
     result = await db.execute(
         Select(models.User).where(models.User.id == user_id)
@@ -95,7 +165,7 @@ async def update_user_partial(user_id: int, user_update: UserUpdate, db: Annotat
 
     if user_update.username is not None and user_update.username != user.username:
         result = await db.execute(
-            Select(models.User).where(models.User.username == user_update.username)  # Check if the new userid exists
+            Select(models.User).where(func.lower(models.User.username) == user_update.username.lower())  # Check if the new userid exists
         )
         existing_user = result.scalars().first()
         if existing_user:
@@ -103,7 +173,7 @@ async def update_user_partial(user_id: int, user_update: UserUpdate, db: Annotat
 
     if user_update.email is not None and user_update.email != user.email:
         result = await db.execute(
-            Select(models.User).where(models.User.email == user_update.email)
+            Select(models.User).where(func.lower(models.User.email) == user_update.email.lower())
         )   # Check if the new email exists
         existing_email = result.scalars().first()
         if existing_email:
@@ -111,8 +181,12 @@ async def update_user_partial(user_id: int, user_update: UserUpdate, db: Annotat
 
     update_data = user_update.model_dump(exclude_unset=True)  # NOTE: This make PATCH work, This helps only get the updated data from the req body
 
-    for field, val in update_data.items():   # Loop over dict
-        setattr(user, field, val)   # Dynamical set the key,val on Post object
+    if user_update.username is not None:
+        user.username = user_update.username
+    if user_update.email is not None:
+        user.email = user_update.email.lower()
+    if user_update.username is not None:
+        user.image_file = user_update.image_file
 
     await db.commit()  # How knows what to commit - Which objects have changed since they were loaded?
     await db.refresh(user)

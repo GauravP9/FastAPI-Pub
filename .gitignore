@@ -1,0 +1,6 @@
+# DOTENV
+.env
+
+# CACHE
+_pycache_
+.mypy_cache

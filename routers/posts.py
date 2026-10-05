@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from database import get_db
-from schemas import PostResponse, PostUpdate, PostCreate, UserResponce
+from schemas import PostResponse, PostUpdate, PostCreate
 import models
 
 router = APIRouter()
