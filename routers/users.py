@@ -75,6 +75,7 @@ async def get_user_posts(user_id: int, db: Annotated[AsyncSession, Depends(get_d
         Select(models.Post)
         .options(selectinload(models.Post.author))  # Required in API
         .where(models.Post.user_id == user_id)
+        .order_by(models.Post.date_posted.desc())
     )
 
     all_posts = result.scalars().all()

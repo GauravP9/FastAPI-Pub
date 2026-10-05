@@ -17,8 +17,9 @@ async def get_posts(db: Annotated[AsyncSession, Depends(get_db)]):
     result = await db.execute(
         Select(models.Post)
         .options(selectinload(models.Post.author))
-    )
-    posts = result.scalars().all()
+        .order_by(models.Post.date_posted.desc()),  # Ordered the post by desc so newest first
+    )  # type: ignore
+    posts = result.scalars().all()  # type: ignore
     if not posts:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post was not found")
     return posts
@@ -29,10 +30,11 @@ async def create_post(post: PostCreate, db: Annotated[AsyncSession, Depends(get_
     result = await db.execute(
         Select(models.User)
         .where(models.User.id == post.user_id)
-    )
+    )   # type: ignore
     last_id = result.scalars().first()
     if not last_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User ID does not exist")
+        pass
+        # raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User ID does not exist")
 
     new_post = models.Post(
         title=post.title,
