@@ -24,8 +24,10 @@ class UserPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)  # Read data with object not just dict this is important for db reading->ORM
 
     id: int
+    username:str
     image_file: str | None
     image_path: str     # This is property of user model in model.py
+
 
 
 class UserPrivate(UserPublic):
@@ -50,7 +52,7 @@ class PostBase(BaseModel):  # Base class - Will be use to create and receive pos
 
 
 class PostCreate(PostBase):  # Whar we accept while creating post
-    user_id: int  # Temporary
+    pass
 
 
 class PostUpdate(PostBase):  # While updating the Post [Patch and Put method]

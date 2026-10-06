@@ -4,3 +4,5 @@
 # CACHE
 _pycache_
 .mypy_cache
+
+clone-repo

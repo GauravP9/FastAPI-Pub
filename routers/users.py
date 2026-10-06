@@ -11,7 +11,7 @@ from schemas import PostResponse, UserCreate, UserPublic, UserPrivate, UserUpdat
 import models
 
 from datetime import timedelta
-from auth import hash_password, oauth2_scheme, verify_access_token, verify_password, create_access_token
+from auth import hash_password, current_user, verify_password, create_access_token
 from config import settings
 
 
@@ -88,35 +88,9 @@ async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm,
 
 
 @router.get("/me", response_model=UserPrivate)  # This route for frontend to know who is logged in
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: Annotated[AsyncSession, Depends(get_db)]):
+async def get_current_user(current_user: current_user):
     """Get the current authenticated user"""
-    user_id = verify_access_token(token)
-
-    if user_id is None:  # We are using this for JWTInvalidTokenError
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail='Unauthorized User or Token Expired',
-                            headers={"WWW-Authenticated": "Bearer"}
-                            )
-    # Validate user id is valid integer [Defence against malformed JWT]
-    try:
-        user_id_int: int = int(user_id)
-    except TypeError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED1,
-            detail="Invalid/Expired token",
-            headers={'WWW-Authenticate': "Bearer"}
-        )
-
-    result = await db.execute(Select(models.User).where(models.User.id == user_id_int))
-
-    user = result.scalars().first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED1,
-            detail="Invalid/Expired token",
-            headers={'WWW-Authenticate': "Bearer"}
-        )
-    return user
+    return current_user
 
 
 @router.get('/{user_id}', status_code=status.HTTP_200_OK, response_model=UserPrivate)
@@ -155,7 +129,13 @@ async def get_user_posts(user_id: int, db: Annotated[AsyncSession, Depends(get_d
 
 
 @router.patch('/{user_id}',  status_code=status.HTTP_200_OK, response_model=UserPrivate)  # Used patch here so fun name is also partial
-async def update_user_partial(user_id: int, user_update: UserUpdate, db: Annotated[AsyncSession, Depends(get_db)]):
+async def update_user_partial(user_id: int, user_update: UserUpdate, current_user: current_user, db: Annotated[AsyncSession, Depends(get_db)]):
+
+    if user_id != current_user.id:
+        return HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                             detail="Not authorized to update the user"
+                             )
+
     result = await db.execute(
         Select(models.User).where(models.User.id == user_id)
     )   # Check if USER exists
@@ -194,7 +174,12 @@ async def update_user_partial(user_id: int, user_update: UserUpdate, db: Annotat
 
 
 @router.delete('/{user_id}', status_code=status.HTTP_204_NO_CONTENT)  # No response model as nothing to return
-async def delete_user(user_id: int,  db: Annotated[AsyncSession, Depends(get_db)]):
+async def delete_user(user_id: int, current_user: current_user, db: Annotated[AsyncSession, Depends(get_db)]):
+    if user_id != current_user.id:
+        return HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                             detail="Not authorized to delete the user"
+                             )
+
     result = await db.execute(
         Select(models.User).where(models.User.id == user_id)
     )

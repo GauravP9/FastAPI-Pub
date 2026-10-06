@@ -49,7 +49,7 @@ async def home(request: Request, db: Annotated[AsyncSession, Depends(get_db)]): 
     result = await db.execute(      # selectinload -> eagerloading, this helps you to load relationship at the start only
         Select(models.Post).options(selectinload(models.Post.author))  # -> "While fetching posts, fetch the related authors too.
         .order_by(models.Post.date_posted.desc()))  # rough Xformation select(models.post) ->  Select * post order by date_posted desc
-    posts=result.scalars().all()
+    posts = result.scalars().all()
 
     return templates.TemplateResponse(request, "home.html", {"posts": posts, "title": "Home"})  # Here the posts is very important this lets us use the dict data to populate in the jinja template
     # Here the 1st keyword is what u used in jinja and 2nd keyword is value u want to give
@@ -58,18 +58,18 @@ async def home(request: Request, db: Annotated[AsyncSession, Depends(get_db)]): 
 # OUR TEMPLATE ROUTES SHOULD RETURN HTML TEMPLATE - Frontend
 
 
-@ app.get('/posts/{post_id}', status_code=status.HTTP_200_OK, include_in_schema=False)
+@app.get('/posts/{post_id}', status_code=status.HTTP_200_OK, include_in_schema=False)
 async def post_page(request: Request, post_id: int, db: Annotated[AsyncSession, Depends(get_db)]):  # Do type hinting so we need not to do specifically
 
-    result=await db.execute(
+    result = await db.execute(
         Select(models.Post)
         .options(selectinload(models.Post.author))
         .where(models.Post.id == post_id)
     )
 
-    post=result.scalars().first()
+    post = result.scalars().first()
     if post:
-        title=post.title[:50]
+        title = post.title[:50]
         return templates.TemplateResponse(
             request, "post.html",
             {"post": post, "title": title}
@@ -77,24 +77,23 @@ async def post_page(request: Request, post_id: int, db: Annotated[AsyncSession, 
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post was not found")
 
 
-@ app.get('/user/{user_id}/posts', include_in_schema=False, name='user_posts')
+@app.get('/user/{user_id}/posts', include_in_schema=False, name='user_posts')
 async def user_posts_page(request: Request, user_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
-    result=await db.execute(
+    result = await db.execute(
         Select(models.User).where(models.User.id == user_id)
     )
 
-    existing_userid=result.scalars().first()
+    existing_userid = result.scalars().first()
     if not existing_userid:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User ID not found")
 
-    result=await db.execute(
+    result = await db.execute(
         Select(models.Post)
         .options(selectinload(models.Post.author))  # We are using author in the templates that is why this is needed
         .where(models.Post.user_id == user_id)
         .order_by(models.Post.date_posted.desc()))
 
-
-    all_posts=result.scalars().all()
+    all_posts = result.scalars().all()
     # if all_posts:
     return templates.TemplateResponse(request,
                                       'user_posts.html', {
@@ -106,13 +105,39 @@ async def user_posts_page(request: Request, user_id: int, db: Annotated[AsyncSes
     # raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No post found by this userid")
 
 
-@ app.exception_handler(starletteHTTPException)
+@app.get('/login', include_in_schema=False)
+async def login_page(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "login.html",
+        {"title": "Login"}
+    )
+
+
+@app.get('/register', include_in_schema=False)
+async def register_page(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "register.html",
+        {"title": "Register"})
+
+
+@app.get('/account', include_in_schema=False)
+async def account_page(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "account.html",
+        {"title": "Account"}
+    )
+
+
+@app.exception_handler(starletteHTTPException)
 async def general_http_exception(request: Request, exception: starletteHTTPException):
 
     if request.url.path.startswith('/api'):
         return await http_exception_handler(request, exception)
 
-    message=(exception.detail
+    message = (exception.detail
                if exception.detail
                else "An error occured check req and try again")
 
@@ -125,7 +150,7 @@ async def general_http_exception(request: Request, exception: starletteHTTPExcep
                                       status_code=exception.status_code)
 
 
-@ app.exception_handler(RequestValidationError)
+@app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exception: RequestValidationError):
     if request.url.path.startswith('/api'):
         return await request_validation_exception_handler(request, exception)
@@ -140,23 +165,3 @@ async def validation_exception_handler(request: Request, exception: RequestValid
         },
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT
     )
-
-# DUMMY FUN SO THAT ERROR STOPS THAT WAS CREATED DUE TO for_each fun in the jinja template
-
-
-@ app.get('/account_page', include_in_schema=False)
-async def account_page(request: Request):
-    # Here the posts is very important this lets us use the dict data to populate in the jinja template
-    return templates.TemplateResponse(request, "home.html", {"posts": posts, "title": "Home"})
-
-
-@ app.get('/login_page', include_in_schema=False)
-async def login_page(request: Request):
-    # Here the posts is very important this lets us use the dict data to populate in the jinja template
-    return templates.TemplateResponse(request, "home.html", {"posts": posts, "title": "Home"})
-
-
-@ app.get('/register_page', include_in_schema=False)
-async def register_page(request: Request):
-    # Here the posts is very important this lets us use the dict data to populate in the jinja template
-    return templates.TemplateResponse(request, "home.html", {"posts": posts, "title": "Home"})
