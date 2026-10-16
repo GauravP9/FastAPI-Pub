@@ -3,7 +3,7 @@ from datetime import datetime
 
 
 class UserBase(BaseModel):
-    username: str = Field(max_length=10)
+    username: str = Field(max_length=50)
     email: EmailStr = Field(max_length=30)
 
 
@@ -34,7 +34,7 @@ class UserPrivate(UserPublic):
 
 
 class UserUpdate(UserBase):
-    username: str | None = Field(default=None, max_length=10)   # Update here has all optional
+    username: str | None = Field(default=None, max_length=50)   # Update here has all optional
     email: EmailStr | None = Field(default=None, max_length=30)
     # image_file: str | None = Field(default=None, max_length=100)  # User can set image_file of other as its value and then delete that through delete endpoint
 
@@ -60,9 +60,16 @@ class PostUpdate(PostBase):  # While updating the Post [Patch and Put method]
 
 
 class PostResponse(PostBase):  # What we return from our API
-    model_config = ConfigDict(from_attributes=True)  # Read data with object not just dict this is important for db reading->ORM
-
-    id: int
+    model_config = ConfigDict(from_attributes=True)  # Don't expect only dictionaries. You can also read values directly from object properties
+    id: int  # || Read data with object not just dict this is important for db reading->ORM
     user_id: int
     date_posted: str | datetime
     author: UserPublic  # We will get neseted data here in post -> Updated this to UserPublic
+
+
+class PaginatedPostResponse(BaseModel):  # For pagination
+    posts: list[PostResponse]
+    total: int  # Total Post
+    skip: int    # Current Offset
+    limit: int   # How many requested
+    has_more: bool  # Whether more available
