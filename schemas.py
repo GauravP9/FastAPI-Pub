@@ -24,10 +24,9 @@ class UserPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)  # Read data with object not just dict this is important for db reading->ORM
 
     id: int
-    username:str
+    username: str
     image_file: str | None
     image_path: str     # This is property of user model in model.py
-
 
 
 class UserPrivate(UserPublic):
@@ -37,7 +36,7 @@ class UserPrivate(UserPublic):
 class UserUpdate(UserBase):
     username: str | None = Field(default=None, max_length=10)   # Update here has all optional
     email: EmailStr | None = Field(default=None, max_length=30)
-    image_file: str | None = Field(default=None, max_length=100)
+    # image_file: str | None = Field(default=None, max_length=100)  # User can set image_file of other as its value and then delete that through delete endpoint
 
 
 class Token(BaseModel):

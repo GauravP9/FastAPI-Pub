@@ -89,4 +89,4 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: An
                             )
     return user
 
-current_user = Annotated[models.User, Depends(get_current_user)]  # Makes the route signature cleaner
+CurrentUser = Annotated[models.User, Depends(get_current_user)]  # Makes the route signature cleaner

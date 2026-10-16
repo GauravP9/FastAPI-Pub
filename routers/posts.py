@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 from database import get_db
 from schemas import PostResponse, PostUpdate, PostCreate
 import models
-from auth import current_user
+from auth import CurrentUser
 
 
 router = APIRouter()
@@ -29,7 +29,7 @@ async def get_posts(db: Annotated[AsyncSession, Depends(get_db)]):
 
 @router.post('', response_model=PostCreate, status_code=status.HTTP_201_CREATED)
 # Adding current user here even before any other thing checking if no valid token then error
-async def create_post(post: PostCreate, current_user: current_user, db: Annotated[AsyncSession, Depends(get_db)]):
+async def create_post(post: PostCreate, current_user: CurrentUser, db: Annotated[AsyncSession, Depends(get_db)]):
     new_post = models.Post(
         title=post.title,
         content=post.content,
@@ -57,7 +57,7 @@ async def get_post(post_id: int,  db: Annotated[AsyncSession, Depends(get_db)]):
 
 # Used PostCreate cause the post that we modify and postcreate req same data and we doing full update so need same data as create
 @router.put('/{post_id}',  status_code=status.HTTP_200_OK, response_model=PostResponse)  # Used put here so fun name is also modufy full
-async def update_post_full(post_id: int, post_data: PostCreate, current_user: current_user, db: Annotated[AsyncSession, Depends(get_db)]):  # Do type hinting so we need not to do specifically
+async def update_post_full(post_id: int, post_data: PostCreate, current_user: CurrentUser, db: Annotated[AsyncSession, Depends(get_db)]):  # Do type hinting so we need not to do specifically
     result = await db.execute(
         Select(models.Post)
         .options(selectinload(models.Post.author))
@@ -83,7 +83,7 @@ async def update_post_full(post_id: int, post_data: PostCreate, current_user: cu
 
 # Used PostUpdate cause the post that we modify and PostUpdate req partial data
 @router.patch('/{post_id}',  status_code=status.HTTP_200_OK, response_model=PostResponse)  # Used patch here so fun name is also partial
-async def update_post_partial(post_id: int, post_data: PostUpdate, current_user: current_user, db: Annotated[AsyncSession, Depends(get_db)]):
+async def update_post_partial(post_id: int, post_data: PostUpdate, current_user: CurrentUser, db: Annotated[AsyncSession, Depends(get_db)]):
     result = await db.execute(
         Select(models.Post).where(models.Post.id == post_id)
     )   # Check if POST exists
@@ -93,8 +93,8 @@ async def update_post_partial(post_id: int, post_data: PostUpdate, current_user:
 
     if post.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                             detail="Not authorized to update the post"
-                             )
+                            detail="Not authorized to update the post"
+                            )
 
     update_data = post_data.model_dump(exclude_unset=True)  # NOTE: This make PATCH work, This helps only get the updated data from the req body
 
@@ -107,7 +107,7 @@ async def update_post_partial(post_id: int, post_data: PostUpdate, current_user:
 
 
 @router.delete('/{post_id}', status_code=status.HTTP_204_NO_CONTENT)  # No response model as nothing to return
-async def delete_post(post_id: int, current_user: current_user, db: Annotated[AsyncSession, Depends(get_db)]):
+async def delete_post(post_id: int, current_user: CurrentUser, db: Annotated[AsyncSession, Depends(get_db)]):
     result = await db.execute(
         Select(models.Post)
         .options(selectinload(models.Post.author))

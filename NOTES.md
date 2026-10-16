@@ -54,3 +54,11 @@ main.py added lifespan and all route are now async and exception handler use fas
 for eagerloading we are using selectinload
 
 # 7 commit - ROUTER
+
+
+# 11 Authorization 
+Authorization added no other user can edit anyones post
+Ownership checks
+Fronend forms working - copied this from the github
+getcurrentuser function is the start of this tutorial see how does it functions
+
