@@ -7,7 +7,7 @@ from database import Base
 # from config import settings
 
 
-class User(Base):   # Set here cause we want to assossiate the post with each user
+class User(Base):  # Set here cause we want to assossiate the post with each user
     __tablename__ = "users"  # Very imp if not referenced then while creating the table in metadata will show error
     # Mapped and mapped_column lets you connect a var to a db connection
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)  # Mapped is generic type hint used by alchemy to indicate that attribute is mapped to db
@@ -22,15 +22,22 @@ class User(Base):   # Set here cause we want to assossiate the post with each us
 
     posts: Mapped[list[Post]] = relationship(
         back_populates="author",
-        cascade="all, delete-orphan",   # delete-orphan -> This mean that if user is deleted then all the post are deleted as well
-    )   # One to Many relationship. Here post can be connected to many user
+        cascade="all, delete-orphan",  # delete-orphan -> This mean that if user is deleted then all the post are deleted as well
+    )  # One to Many relationship. Here post can be connected to many user
     # Post here is forward reference - before creating post[class created below ] we can ref
 
-    @property   # decorator that lets you access a method like an attribute
+    reset_tokens: Mapped[list[PasswordResetToken]] = relationship(
+        back_populates="user", 
+        cascade="all, delete-orphan"    # Delete the tokens on user deletion
+        )
+
+    @property  # decorator that lets you access a method like an attribute
     def image_path(self) -> str:
         if self.image_file:
             return f"/media/profile_pics/{self.image_file}"  # This is user uploaded data we storing in media so create that folder and serve them as static file
         return "/static/profile_pics/default.jpg"
+
+
 
 
 class Post(Base):
@@ -57,7 +64,7 @@ class Post(Base):
 # One Post belongs to exactly one User
 
 # Because author is an ORM relationship attribute, not a database column.
-# The ORM creates author so you don't have to manually query the users table every time you want information about the user who owns a post. 
+# The ORM creates author so you don't have to manually query the users table every time you want information about the user who owns a post.
 # That's one of the biggest benefits of using an ORM.
 
 # mapped_column(...) → becomes a database column ✅
@@ -87,3 +94,15 @@ class Post(Base):
 # │ date_posted         │
 # │ likes               │
 # └─────────────────────┘
+
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)  # Relation to User table
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)  # Saving hased token not the actual token : hashing fun will always create 64letters
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now())
+
+    user: Mapped[User] = relationship(back_populates="reset_tokens")

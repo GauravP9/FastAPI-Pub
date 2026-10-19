@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field, EmailStr   # configdict - to configure models
+from pydantic import BaseModel, ConfigDict, Field, EmailStr  # configdict - to configure models
 from datetime import datetime
 
 
@@ -10,12 +10,14 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str = Field(min_length=4)  # Accept passwd while creating
 
+
 # ConfigDict - Pdantic when validating something default way is dict but with this method we READ fields from object attribute
 # Pydantic extracts values from object attributes and then validates them. If we using pdantic everywhere then use from_attr
 
 
-class UserPrivate():
+class UserPrivate:
     pass
+
 
 # Splitted the UserResponse schema into Private/Public for appropriate use case
 
@@ -26,7 +28,7 @@ class UserPublic(BaseModel):
     id: int
     username: str
     image_file: str | None
-    image_path: str     # This is property of user model in model.py
+    image_path: str  # This is property of user model in model.py
 
 
 class UserPrivate(UserPublic):
@@ -34,7 +36,7 @@ class UserPrivate(UserPublic):
 
 
 class UserUpdate(UserBase):
-    username: str | None = Field(default=None, max_length=50)   # Update here has all optional
+    username: str | None = Field(default=None, max_length=50)  # Update here has all optional
     email: EmailStr | None = Field(default=None, max_length=30)
     # image_file: str | None = Field(default=None, max_length=100)  # User can set image_file of other as its value and then delete that through delete endpoint
 
@@ -70,6 +72,21 @@ class PostResponse(PostBase):  # What we return from our API
 class PaginatedPostResponse(BaseModel):  # For pagination
     posts: list[PostResponse]
     total: int  # Total Post
-    skip: int    # Current Offset
-    limit: int   # How many requested
+    skip: int  # Current Offset
+    limit: int  # How many requested
     has_more: bool  # Whether more available
+
+
+# PASSWORD RESET SCHEMAS
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr = Field(max_length=100)
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=4)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=4)

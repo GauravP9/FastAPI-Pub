@@ -4,6 +4,8 @@
 # CACHE
 __pycache__
 .mypy_cache
-
+.
+# venv
+.env_fastapi
 
 clone-repo

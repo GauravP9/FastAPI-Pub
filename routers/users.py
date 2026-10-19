@@ -1,20 +1,22 @@
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status  # Uploadfile - UploadFiles
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, status  # Uploadfile - UploadFiles
 from fastapi.security import OAuth2PasswordRequestForm
 from PIL import UnidentifiedImageError  # For image error
+from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, select  # func - for case-insensetive query[Any func called on this become sql func func.lower(col) => lower(col)]
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.concurrency import run_in_threadpool
 
 import models
-from auth import CurrentUser, create_access_token, hash_password, verify_password
+from auth import CurrentUser, create_access_token, generate_reset_token, hash_password, hash_reset_token, verify_password
 from config import settings
 from database import get_db
 from image_utils import delete_profile_image, process_profile_image
-from schemas import PostResponse, Token, UserCreate, UserPrivate, UserUpdate, PaginatedPostResponse
+from schemas import PaginatedPostResponse, PostResponse, Token, UserCreate, UserPrivate, UserUpdate, ChangePasswordRequest, ResetPasswordRequest, ForgotPasswordRequest
+from email_utils import send_password_reset_email
 
 router = APIRouter()
 
@@ -76,6 +78,123 @@ async def get_current_user(current_user: CurrentUser):
     return current_user
 
 
+@router.patch("/me/password", status_code=status.HTTP_200_OK)
+async def change_password(
+    password_data: ChangePasswordRequest,
+    current_user:CurrentUser,
+    db:Annotated[AsyncSession, Depends(get_db)]
+):
+    if not verify_password(password_data.current_password,current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect"
+        )
+
+    current_user.password_hash = hash_password(password_data.new_password)
+    await db.execute(sql_delete(models.PasswordResetToken).where(
+        models.PasswordResetToken.user_id == current_user.id
+    ))
+
+    await db.commit()
+    return {
+        "message":"Password changed successfully"
+    }
+
+@router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)  # 202 we use accept here we dont confirm that this mail exist or not
+async def forgot_password(
+    request_data:ForgotPasswordRequest, 
+    background_tasks:BackgroundTasks, 
+    db:Annotated[AsyncSession,Depends(get_db)]
+    ):
+
+    result = await db.execute(select(models.User).where(func.lower(models.User.email)== request_data.email.lower()))
+    user = result.scalars().first() # Check if user exists
+
+    if user:
+        await db.execute(sql_delete(models.PasswordResetToken).where(models.PasswordResetToken.user_id==user.id))   # Delete token if exist
+
+        token = generate_reset_token()
+        tokenhash = hash_reset_token(token)
+        expires_at = datetime.now(UTC) + timedelta(
+            settings.reset_token_expire_minutes
+        )
+
+        reset_token = models.PasswordResetToken(
+            user_id= user.id,
+            token_hash = tokenhash,
+            expires_at= expires_at
+        )
+
+        db.add(reset_token)
+        await db.commit()
+
+        background_tasks.add_task(
+            send_password_reset_email,
+            to_email=user.email,
+            username=user.username,
+            token= token    # Sending token [As this will be need to login] not the hashed one we keep that in db
+        )
+
+    return{
+        "message":"If an account exists with this email, you will receive password reset instructions"
+    }
+
+
+@router.post('/reset-password', status_code=status.HTTP_200_OK)
+async def reset_password(
+    request_data:ResetPasswordRequest,  # desrialization of incoming JSON
+    db:Annotated[AsyncSession, Depends(get_db)]
+):
+    token_hash = hash_reset_token(request_data.token)
+
+    result = await db.execute(
+        select(models.PasswordResetToken).where(models.PasswordResetToken.token_hash==token_hash)
+    )
+    result_token = result.scalars().first()
+
+    if not result_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired token"
+            )
+
+    if result_token.expires_at.replace(tzinfo=UTC) < datetime.now(UTC):    # replace => sqlite bydefault strips out any tz related info so adding that back for comparison 
+        await db.delete(result_token)
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired token"
+        )
+
+
+    result = await db.execute(
+        select(models.User).where(models.User.id == result_token.user_id)
+    )
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token"
+            )
+
+    user.password_hash = hash_password(
+    request_data.new_password
+    )
+    
+    await db.execute(
+        sql_delete(models.PasswordResetToken).where(models.PasswordResetToken.user_id==user.id)
+    )
+
+    await db.commit()   # All the dirty object are commited including updated password
+    return {
+        "message":"Password reset success"
+    }
+
+
+
+
+
+
 @router.get("/{user_id}", status_code=status.HTTP_200_OK, response_model=UserPrivate)
 async def get_user(user_id: int, db: Annotated[AsyncSession, Depends(get_db)]):  # Do type hinting so we need not to do specifically
     result = await db.execute(select(models.User).where(models.User.id == user_id))
@@ -110,12 +229,8 @@ async def get_user_posts(user_id: int, db: Annotated[AsyncSession, Depends(get_d
 
     has_more = skip + len(posts) < total
 
-    return PaginatedPostResponse(   # Paginated the results 
-        posts=[PostResponse.model_validate(post) for post in posts],
-        total=total,
-        skip=skip,
-        limit= limit,
-        has_more=has_more
+    return PaginatedPostResponse(  # Paginated the results
+        posts=[PostResponse.model_validate(post) for post in posts], total=total, skip=skip, limit=limit, has_more=has_more
     )
 
 

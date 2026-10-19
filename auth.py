@@ -6,6 +6,8 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import Select
 from sqlalchemy.ext.asyncio import AsyncSession
+import hashlib  # Generate hash 
+import secrets  # Generate secure random valuse
 
 from database import Base, get_db
 from config import settings
@@ -24,6 +26,14 @@ def verify_password(password: str, hashed_password: str) -> bool:
     return password_hash.verify(password=password, hash=hashed_password)    # Return TRUE
 
 # ENCRYPTION are reversible but HASHES are not
+
+def generate_reset_token()->str:
+    return secrets.token_urlsafe(32)    # generates a cryptographically secure random URL-safe string [Safe to use in URL].
+
+def hash_reset_token(token:str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()   #Taken token and return sha256 hash 
+# Why not use Argon2 instead of SHA256
+# Password are weak and predictable we need slow hash to make brute force attack impractical but here token are already random so SHA256 is safe and faster
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
@@ -90,3 +100,4 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: An
     return user
 
 CurrentUser = Annotated[models.User, Depends(get_current_user)]  # Makes the route signature cleaner
+
