@@ -55,7 +55,7 @@ class Post(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
     )
-    likes: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    likes: Mapped[int] = mapped_column(Integer, default=0, server_default="0")  # Default=Python Default, server_default=Database default
 
     author: Mapped[User] = relationship(back_populates="posts")  # One to many relationship -> Links this relationship to the posts relationship in the User model:
 

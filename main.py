@@ -29,7 +29,7 @@ from starlette.exceptions import (
 import models
 from config import settings
 from database import (
-    Base,  # Base,engin - are for creating the tables and accessing, get_db for injection
+    # Base,  # Base,engin - are for creating the tables and accessing, get_db for injection
     engine,
     get_db,
 )
@@ -40,8 +40,9 @@ from routers import posts, users  # Routers imported
 @asynccontextmanager  # Converts the function into a lifespan context manager.FASTAPI run code before startup and during shut wn
 async def lifespan(_app: FastAPI):
     # Startup
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)  # Creates all the tables which inherit from the Base class this is idempotent so even if we run multiple time no problems
+    # Commented this while transitioning to postgres as we dont need to create table on start
+    # async with engine.begin() as conn:
+        # await conn.run_sync(Base.metadata.create_all)  # Creates all the tables which inherit from the Base class this is idempotent so even if we run multiple time no problems
     yield  # This is like pause button above code run before startup and below code run after startup
 
     # Shutdown

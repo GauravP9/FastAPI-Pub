@@ -158,7 +158,8 @@ async def reset_password(
             detail="Invalid or expired token"
             )
 
-    if result_token.expires_at.replace(tzinfo=UTC) < datetime.now(UTC):    # replace => sqlite bydefault strips out any tz related info so adding that back for comparison 
+    # if result_token.expires_at.replace(tzinfo=UTC) < datetime.now(UTC):    # replace => sqlite bydefault strips out any tz related info so adding that back for comparison 
+    if result_token.expires_at < datetime.now(UTC): # We dont need replace with pg as its tz aware
         await db.delete(result_token)
         await db.commit()
         raise HTTPException(
