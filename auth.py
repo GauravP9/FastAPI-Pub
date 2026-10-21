@@ -1,17 +1,18 @@
-from datetime import datetime, timedelta, UTC
-import jwt
-from fastapi.security import OAuth2PasswordBearer
-from pwdlib import PasswordHash
-from typing import Annotated
-from fastapi import Depends, HTTPException, status
-from sqlalchemy import Select
-from sqlalchemy.ext.asyncio import AsyncSession
 import hashlib  # Generate hash 
 import secrets  # Generate secure random valuse
+from datetime import UTC, datetime, timedelta
+from typing import Annotated
 
-from database import Base, get_db
-from config import settings
+import jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from pwdlib import PasswordHash
+from sqlalchemy import Select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 import models
+from config import settings
+from database import get_db
 
 password_hash = PasswordHash.recommended()  # Gives recommended settings for hashing
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/api/users/token')  # tokenURL has to MATCH the login endpoint

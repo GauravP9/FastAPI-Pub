@@ -9,7 +9,7 @@ class Settings(BaseSettings):  # These variables mapped to env var and these are
     )  # Basically we are telling that we are going to check .env file for the secrets
 
     # DATABASE URL
-    database_url:str    # No default value so this needs to be setup in .env file or in system directly as str
+    database_url: str  # No default value so this needs to be setup in .env file or in system directly as str
 
     # HASHING CONFIG
     secret_key: SecretStr  # Special type wont leak this value in log/print statement
@@ -24,7 +24,7 @@ class Settings(BaseSettings):  # These variables mapped to env var and these are
 
     reset_token_expire_minutes: int = 60  # Token expire for reset feature
 
-    # MAIL SETTINGS 
+    # MAIL SETTINGS
     mail_server: str = "localhost"
     mail_port: int = 587
     mail_username: str = ""
@@ -34,5 +34,12 @@ class Settings(BaseSettings):  # These variables mapped to env var and these are
 
     frontend_url: str = "http://localhost:8000"  # Userd for attacker may trick us into sending reset email with links to redirect to their site [DuplicateSite Attacks]
 
-    
+    # S3 Config
+    s3_bucket_name: str
+    s3_bucket_region: str
+    s3_access_key_id: SecretStr | None = None
+    s3_secret_access_key: SecretStr | None = None
+    s3_enpoint_url: str | None = None
+
+
 settings = Settings()  # type: ignore # Loaded everything from .env file

@@ -52,7 +52,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")  # mount takes 3 args -> 1. URL path 2.static directory 3.Name we can use to ref in template
-app.mount("/media", StaticFiles(directory="media"), name="media")  # This create /url route and help serve the user uploaded data
+# app.mount("/media", StaticFiles(directory="media"), name="media")  # Removed this as we are moved to AWS # This create /url route and help serve the user uploaded data
 
 
 templates = Jinja2Templates(directory="templates")
