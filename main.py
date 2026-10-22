@@ -19,7 +19,7 @@ from fastapi.staticfiles import (
     StaticFiles,  # To serve the static files like CSS and images
 )
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.exceptions import (
@@ -60,6 +60,17 @@ templates = Jinja2Templates(directory="templates")
 app.include_router(users.router, prefix="/api/users", tags=["users"])  # Connect touter to app, prefix is added to router, tag creates collapasable section in docs
 app.include_router(posts.router, prefix="/api/posts", tags=["posts"])
 
+
+@app.get("/health")
+async def health_check(db:Annotated[AsyncSession, Depends(get_db)]):
+    try:
+        await db.execute(text("SELECT 1"))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database unavailable"   
+        ) from e
+    return {"status":"healthy"}
 
 # If we want the same data on 2 routes we can stack the decorators
 # include False then this will not show up in the documentation
